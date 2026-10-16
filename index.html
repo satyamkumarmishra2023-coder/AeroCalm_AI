@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AeroCalm AI — ATC Fatigue Monitoring</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Exo+2:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════════════
+   AEROCALM AI V6.0  ATC FATIGUE MONITORING SYSTEM
+   Voice-Only · Eye Closure Alerts · Epoch Stamping
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --ink:#03060f; --abyss:#050a14; --hull:#080f1c;
+  --plating:#0a1422; --deck:#0d1a2e;
+  --w0:rgba(0,180,255,.06); --w1:rgba(0,180,255,.14);
+  --w2:rgba(0,180,255,.28);
+  --ion:#00f0ff; --ion-dim:#009eb8; --ion-halo:rgba(0,240,255,.22);
+  --plasma:#00ff9d; --plasma-dim:#00c478; --plasma-halo:rgba(0,255,157,.25);
+  --nova:#ffcc00; --nova-dim:#cc9900; --nova-halo:rgba(255,204,0,.28);
+  --flare:#ff1f4e; --flare-dim:#cc1840; --flare-halo:rgba(255,31,78,.3);
+  --amber:#ff8c00;
+  --text-hi:#eaf4ff; --text-mid:#7ab0cc; --text-low:#3a6080; --text-dead:#1a3050;
+  --f-d:'Bebas Neue',sans-serif; --f-u:'Exo 2',sans-serif; --f-m:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:13px}
+body{background:var(--ink);color:var(--text-mid);font-family:var(--f-u);min-height:100vh;overflow-x:hidden;cursor:none}
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(0,207,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,207,255,.02) 1px,transparent 1px);
+  background-size:44px 44px}
+.cursor-ring{position:fixed;width:26px;height:26px;border:1px solid var(--ion);border-radius:50%;
+  pointer-events:none;z-index:99999;transform:translate(-50%,-50%);transition:width .2s,height .2s,border-color .2s;mix-blend-mode:screen}
+.cursor-dot{position:fixed;width:4px;height:4px;background:var(--ion);border-radius:50%;
+  pointer-events:none;z-index:99999;transform:translate(-50%,-50%);box-shadow:0 0 8px var(--ion)}
+.scan{position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.06) 2px,rgba(0,0,0,.06) 3px)}
+.zone-flash{position:fixed;inset:0;z-index:9998;pointer-events:none;opacity:0;transition:opacity .05s}
+.zone-flash.bang{opacity:.13;transition:opacity 0s}
+.eye-alert-ring{display:none;position:fixed;inset:0;z-index:9990;pointer-events:none;
+  border:3px solid var(--amber);animation:eye-pulse 1s ease-in-out infinite}
+.eye-alert-ring.on{display:block}
+@keyframes eye-pulse{0%,100%{opacity:0}50%{opacity:.8}}
+.alert-ring{display:none;position:fixed;inset:0;z-index:9989;pointer-events:none;
+  animation:red-pulse 1.4s ease-in-out infinite}
+.alert-ring.on{display:block}
+@keyframes red-pulse{0%,100%{box-shadow:inset 0 0 0 2px rgba(255,31,78,0)}
+  50%{box-shadow:inset 0 0 0 3px rgba(255,31,78,.7),inset 0 0 80px rgba(255,31,78,.18)}}
+#particleCanvas{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.3}
+
+/* ── LAYOUT ── */
+.shell{position:relative;z-index:2;max-width:1600px;margin:0 auto;padding:12px 18px 28px;display:flex;flex-direction:column;gap:10px}
+
+/* ── TOPBAR ── */
+.topbar{display:flex;align-items:center;height:58px;border:1px solid var(--w1);border-radius:3px;
+  background:var(--hull);overflow:hidden;position:relative}
+.topbar::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:linear-gradient(180deg,var(--ion),var(--plasma));box-shadow:2px 0 12px rgba(0,240,255,.3)}
+.topbar::after{content:'';position:absolute;top:0;left:-100%;width:60%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(0,240,255,.04),transparent);animation:sweep 7s linear infinite}
+@keyframes sweep{to{left:150%}}
+.tb-sec{display:flex;align-items:center;padding:0 18px;height:100%;border-right:1px solid var(--w1);gap:12px;flex-shrink:0}
+.tb-sec:last-child{border-right:none;margin-left:auto}
+.logo-hex{width:36px;height:36px;flex-shrink:0}
+.logo-hex svg{width:100%;height:100%;overflow:visible}
+.logo-txt h1{font-family:var(--f-d);font-size:1.3rem;letter-spacing:.22em;color:var(--text-hi);line-height:1}
+.logo-txt p{font-family:var(--f-m);font-size:.5rem;letter-spacing:.25em;color:var(--ion-dim);text-transform:uppercase;margin-top:3px}
+
+/* Tab switcher */
+.tab-bar{display:flex;gap:0;background:var(--abyss);border-radius:3px;overflow:hidden;border:1px solid var(--w1)}
+.tab-btn{padding:8px 22px;font-family:var(--f-u);font-size:.68rem;font-weight:700;
+  letter-spacing:.18em;text-transform:uppercase;cursor:none;border:none;
+  background:transparent;color:var(--text-dead);transition:all .3s;white-space:nowrap}
+.tab-btn.active{background:var(--ion);color:var(--ink)}
+.tab-btn:hover:not(.active){color:var(--text-mid);background:var(--w0)}
+
+.clock-hms{font-family:var(--f-d);font-size:1.5rem;letter-spacing:.08em;color:var(--plasma);text-shadow:0 0 18px var(--plasma-halo);line-height:1}
+.clock-date{font-family:var(--f-m);font-size:.48rem;letter-spacing:.25em;color:var(--text-dead);margin-top:2px;text-transform:uppercase}
+.conn-chip{display:flex;align-items:center;gap:6px;padding:6px 14px;border:1px solid var(--w1);
+  background:var(--plating);font-family:var(--f-u);font-size:.62rem;font-weight:700;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--text-dead);transition:all .4s;
+  clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.chip-pip{width:6px;height:6px;border-radius:50%;background:var(--text-dead);transition:all .4s}
+.conn-chip.live{border-color:var(--plasma);color:var(--plasma)}
+.conn-chip.live .chip-pip{background:var(--plasma);box-shadow:0 0 8px var(--plasma);animation:pip 2.5s ease-in-out infinite}
+.conn-chip.warn{border-color:var(--nova);color:var(--nova)}
+.conn-chip.warn .chip-pip{background:var(--nova);animation:pip .6s ease-in-out infinite}
+.conn-chip.off{border-color:var(--text-dead);color:var(--text-dead)}
+@keyframes pip{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* ── VIEWS ── */
+.view{display:none}.view.active{display:flex;flex-direction:column;gap:10px}
+
+/* ── PANEL BASE ── */
+.panel{background:var(--hull);border:1px solid var(--w1);border-radius:3px;position:relative;overflow:hidden}
+.panel::before,.panel::after{content:'';position:absolute;width:10px;height:10px;border-color:var(--w2);border-style:solid;z-index:1}
+.panel::before{top:4px;left:4px;border-width:1px 0 0 1px}
+.panel::after{bottom:4px;right:4px;border-width:0 1px 1px 0}
+.panel-tag{position:absolute;top:-1px;left:16px;font-family:var(--f-m);font-size:.48rem;
+  letter-spacing:.28em;color:var(--ion-dim);background:var(--hull);padding:0 8px;
+  transform:translateY(-50%);text-transform:uppercase;white-space:nowrap}
+.panel-accent{position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent 0%,var(--accent-col,var(--ion)) 25%,var(--accent-col,var(--ion)) 75%,transparent 100%);
+  box-shadow:0 0 10px var(--accent-glow,var(--ion-halo));transition:all .7s}
+
+/* ── OPERATOR LOGIN ── */
+.login-panel{padding:32px;display:flex;flex-direction:column;align-items:center;gap:20px;min-height:200px;justify-content:center}
+.login-title{font-family:var(--f-d);font-size:1.8rem;letter-spacing:.2em;color:var(--text-hi)}
+.login-sub{font-family:var(--f-m);font-size:.62rem;color:var(--text-low);letter-spacing:.12em;text-transform:uppercase}
+.login-row{display:flex;gap:10px;align-items:center}
+.login-input{background:var(--plating);border:1px solid var(--w2);border-radius:2px;
+  padding:10px 16px;color:var(--ion);font-family:var(--f-d);font-size:1.2rem;
+  letter-spacing:.18em;outline:none;width:200px;transition:border-color .3s}
+.login-input:focus{border-color:var(--ion);box-shadow:0 0 0 2px var(--ion-halo)}
+.login-input::placeholder{color:var(--text-dead)}
+
+/* ── BUTTONS ── */
+.btn{position:relative;padding:0 24px;height:36px;border:1px solid var(--plasma);
+  background:transparent;color:var(--plasma);font-family:var(--f-u);font-size:.68rem;
+  font-weight:700;letter-spacing:.22em;text-transform:uppercase;cursor:none;
+  transition:all .3s;clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px));
+  overflow:hidden;white-space:nowrap}
+.btn::before{content:'';position:absolute;inset:0;background:var(--plasma);opacity:0;transition:opacity .3s}
+.btn:hover::before{opacity:.09}.btn:hover{box-shadow:0 0 20px var(--plasma-halo)}
+.btn.red{border-color:var(--flare);color:var(--flare)}.btn.red::before{background:var(--flare)}
+.btn.red:hover{box-shadow:0 0 20px var(--flare-halo)}
+.btn.amber{border-color:var(--nova);color:var(--nova)}.btn.amber::before{background:var(--nova)}
+.btn.sm{padding:0 14px;height:28px;font-size:.58rem}
+.btn:disabled{opacity:.3;pointer-events:none}
+
+/* ── OPERATOR ACTIVE SESSION ── */
+.op-grid{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+.op-left{display:flex;flex-direction:column;gap:10px}
+.op-right{display:flex;flex-direction:column;gap:10px}
+
+/* Hero score */
+.hero{padding:22px 28px}
+.hero-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+.hero-ident{font-family:var(--f-m);font-size:.5rem;letter-spacing:.3em;color:var(--text-dead);text-transform:uppercase}
+.hero-name{font-family:var(--f-d);font-size:.95rem;letter-spacing:.18em;color:var(--ion);margin-top:3px}
+.hero-elapsed{text-align:right}
+.elapsed-lbl{font-family:var(--f-m);font-size:.48rem;letter-spacing:.22em;color:var(--text-dead);text-transform:uppercase}
+.elapsed-val{font-family:var(--f-d);font-size:1.2rem;letter-spacing:.1em;color:var(--text-low);margin-top:2px}
+.score-row{display:flex;align-items:flex-start;gap:20px;margin-bottom:16px}
+.score-big{font-family:var(--f-d);font-size:7rem;line-height:.9;letter-spacing:-.02em;
+  color:var(--zone-col,var(--text-dead));text-shadow:0 0 50px var(--zone-glow,transparent);
+  transition:color .7s,text-shadow .7s;min-width:180px;user-select:none;position:relative}
+.score-big::before{content:attr(data-s);position:absolute;top:0;left:-2px;color:inherit;
+  opacity:.2;filter:blur(1px);transform:translateX(-2px);pointer-events:none}
+.score-meta{padding-top:8px;flex:1}
+.zone-call{font-family:var(--f-d);font-size:2.1rem;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--zone-col,var(--text-dead));text-shadow:0 0 24px var(--zone-glow,transparent);
+  transition:all .7s;line-height:1;margin-bottom:5px}
+.zone-msg{font-family:var(--f-m);font-size:.66rem;color:var(--text-low);letter-spacing:.04em;
+  line-height:1.6;min-height:18px;transition:all .5s;max-width:320px}
+.denom{font-family:var(--f-m);font-size:.55rem;color:var(--text-dead);letter-spacing:.14em;
+  margin-top:12px;text-transform:uppercase}
+
+/* Gauge */
+.gauge-wrap{margin-top:2px}
+.gauge-lbls{display:flex;justify-content:space-between;font-family:var(--f-m);
+  font-size:.5rem;color:var(--text-dead);letter-spacing:.12em;text-transform:uppercase;margin-bottom:5px}
+.gauge-rail{height:8px;background:var(--abyss);border:1px solid var(--w1);border-radius:4px;position:relative;overflow:hidden}
+.gauge-grad{position:absolute;inset:0;background:linear-gradient(90deg,var(--plasma) 0%,var(--nova) 39%,var(--nova) 40%,var(--flare) 64%,var(--flare) 100%);opacity:.15}
+.gauge-fill{position:absolute;top:0;left:0;bottom:0;
+  background:linear-gradient(90deg,var(--plasma) 0%,var(--nova) 40%,var(--flare) 65%,var(--flare) 100%);
+  transition:width .8s cubic-bezier(.4,0,.2,1);border-radius:4px}
+.gauge-needle{position:absolute;top:-3px;bottom:-3px;width:3px;border-radius:2px;
+  background:white;box-shadow:0 0 8px white;transition:left .8s cubic-bezier(.4,0,.2,1);transform:translateX(-50%)}
+.gauge-thresh{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.3)}
+.gauge-thresh::after{content:attr(data-v);position:absolute;top:-15px;left:50%;transform:translateX(-50%);
+  font-family:var(--f-m);font-size:.5rem;color:var(--text-dead)}
+.zone-strip{display:flex;height:3px;gap:2px;margin-top:4px;border-radius:2px}
+.zs-g{flex:40;background:rgba(0,255,157,.22);border-radius:1px}
+.zs-y{flex:25;background:rgba(255,204,0,.22);border-radius:1px}
+.zs-r{flex:35;background:rgba(255,31,78,.22);border-radius:1px}
+
+/* Calibration bar */
+.calib-bar{padding:22px 28px;display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center;min-height:200px}
+.calib-title{font-family:var(--f-d);font-size:1.6rem;letter-spacing:.2em;color:var(--ion)}
+.calib-msg{font-family:var(--f-m);font-size:.64rem;color:var(--text-low);letter-spacing:.08em;text-align:center;line-height:1.7}
+.calib-track{width:100%;max-width:400px;height:6px;background:var(--abyss);border-radius:3px;border:1px solid var(--w1);overflow:hidden}
+.calib-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--ion-dim),var(--ion));transition:width .5s ease}
+.calib-pct{font-family:var(--f-d);font-size:1.8rem;color:var(--ion);letter-spacing:.1em}
+
+/* Eye warning banner */
+.eye-banner{display:none;padding:10px 20px;background:rgba(255,140,0,.1);
+  border-bottom:1px solid rgba(255,140,0,.3);align-items:center;gap:12px}
+.eye-banner.show{display:flex}
+.eye-icon{font-size:1.2rem}
+.eye-txt{font-family:var(--f-m);font-size:.7rem;color:var(--amber);letter-spacing:.06em;flex:1}
+.eye-time{font-family:var(--f-d);font-size:.9rem;color:var(--amber);letter-spacing:.08em}
+
+/* Biomarker panel */
+.bio-panel{padding:16px 18px}
+.bio-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0}
+.bio-row{display:flex;flex-direction:column;gap:4px;padding:8px 0;border-bottom:1px solid var(--w0)}
+.bio-row:nth-child(3n+1){padding-right:10px;border-right:1px solid var(--w0)}
+.bio-row:nth-child(3n+2){padding:8px 10px;border-right:1px solid var(--w0)}
+.bio-row:nth-child(3n){padding-left:10px}
+.bio-row:nth-last-child(-n+3){border-bottom:none}
+.bio-hdr{display:flex;justify-content:space-between;align-items:center}
+.bio-name{font-family:var(--f-u);font-size:.56rem;font-weight:600;letter-spacing:.14em;color:var(--text-mid);text-transform:uppercase}
+.bio-score{font-family:var(--f-d);font-size:.85rem;letter-spacing:.06em;color:var(--ion)}
+.bio-track{height:4px;background:var(--abyss);border-radius:2px;overflow:hidden}
+.bio-fill{height:100%;border-radius:2px;transition:width .8s cubic-bezier(.4,0,.2,1)}
+.bio-fill.rms   {background:linear-gradient(90deg,#00a86b,var(--plasma))}
+.bio-fill.flat  {background:linear-gradient(90deg,var(--ion-dim),var(--ion))}
+.bio-fill.jitter{background:linear-gradient(90deg,#b060ff,#e090ff)}
+.bio-fill.shim  {background:linear-gradient(90deg,var(--nova-dim),var(--nova))}
+.bio-fill.f0    {background:linear-gradient(90deg,#ff6060,var(--flare))}
+.bio-fill.form  {background:linear-gradient(90deg,var(--ion-dim),var(--plasma))}
+.bio-fill.hnr   {background:linear-gradient(90deg,#0088bb,#00d4ff)}
+.bio-fill.speech{background:linear-gradient(90deg,#cc7700,var(--nova))}
+.bio-fill.mfcc  {background:linear-gradient(90deg,#8800cc,#cc44ff)}
+.bio-wt{font-family:var(--f-m);font-size:.46rem;color:var(--text-dead);letter-spacing:.05em}
+
+/* Chart */
+.chart-panel{padding:14px 18px}
+.chart-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.chart-leg{display:flex;gap:14px}
+.leg-i{display:flex;align-items:center;gap:5px;font-family:var(--f-m);font-size:.54rem;color:var(--text-low)}
+.leg-d{width:14px;height:1.5px;border-radius:1px}
+.chart-kpis{display:flex;gap:16px}
+.kpi{font-family:var(--f-m);font-size:.54rem;color:var(--text-dead)}
+.kpi strong{font-family:var(--f-d);font-size:.82rem;color:var(--ion);margin-left:4px}
+.chart-wrap{height:155px;position:relative}
+
+/* Stamps panel */
+.stamps-panel{padding:14px 16px;flex:1}
+.stamp-scroll{height:220px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--w2) transparent}
+.stamp-scroll::-webkit-scrollbar{width:3px}
+.stamp-scroll::-webkit-scrollbar-thumb{background:var(--w2);border-radius:2px}
+.stamp-row{display:grid;grid-template-columns:60px 60px 1fr;gap:8px;
+  padding:6px 0;border-bottom:1px solid var(--w0);align-items:center;
+  animation:row-in .2s ease both}
+@keyframes row-in{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:none}}
+.st-time{font-family:var(--f-m);font-size:.6rem;color:var(--text-dead)}
+.st-zone{font-family:var(--f-u);font-size:.58rem;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;padding:2px 6px;border-radius:2px;text-align:center}
+.st-zone.G{background:rgba(0,255,157,.08);color:var(--plasma);border:1px solid rgba(0,255,157,.2)}
+.st-zone.Y{background:rgba(255,204,0,.08);color:var(--nova);border:1px solid rgba(255,204,0,.2)}
+.st-zone.R{background:rgba(255,31,78,.08);color:var(--flare);border:1px solid rgba(255,31,78,.2)}
+.st-detail{font-family:var(--f-m);font-size:.6rem;color:#5a8aaa;line-height:1.5}
+
+/* Right instruments */
+.instr{padding:12px 14px;flex:1}
+.instr-lbl{font-family:var(--f-m);font-size:.48rem;letter-spacing:.26em;color:var(--text-dead);
+  text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.instr-pip{width:5px;height:5px;border-radius:50%;background:var(--ion);box-shadow:0 0 6px var(--ion);flex-shrink:0}
+.instr-val{font-family:var(--f-d);font-size:1.7rem;letter-spacing:.05em;color:var(--ion);line-height:1}
+.instr-sub{font-family:var(--f-m);font-size:.52rem;color:var(--text-dead);letter-spacing:.05em;margin-top:4px}
+.instr-bar{height:3px;background:var(--abyss);border-radius:2px;margin-top:8px;overflow:hidden}
+.instr-bar-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--ion-dim),var(--ion));transition:width .6s ease}
+.instr.peak .instr-pip{background:var(--nova);box-shadow:0 0 6px var(--nova)}
+.instr.peak .instr-val{color:var(--nova)}
+.status-badge{font-family:var(--f-m);font-size:.52rem;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;padding:3px 8px;border-radius:2px;margin-top:5px;display:inline-block;transition:all .4s}
+.status-badge.ok{background:rgba(0,255,157,.08);color:var(--plasma);border:1px solid rgba(0,255,157,.2)}
+.status-badge.idle{background:rgba(26,48,80,.4);color:var(--text-dead);border:1px solid var(--w0)}
+
+/* Duty controls */
+.duty-ctrl{display:flex;align-items:center;gap:12px;padding:12px 16px;
+  background:var(--hull);border:1px solid var(--w1);border-radius:3px}
+.duty-info{font-family:var(--f-m);font-size:.66rem;color:var(--text-low);flex:1;letter-spacing:.04em}
+
+/* ─── COMMAND CENTRE VIEW ─── */
+.cmd-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* Operator cards */
+.op-cards{padding:16px}
+.op-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:10px}
+.op-card{background:var(--plating);border:1px solid var(--w1);border-radius:3px;padding:14px 16px;
+  position:relative;overflow:hidden;transition:border-color .3s;cursor:none}
+.op-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:var(--card-col,var(--text-dead));transition:all .5s}
+.op-card:hover{border-color:var(--w2)}
+.opc-name{font-family:var(--f-u);font-size:.78rem;font-weight:700;color:var(--text-hi);margin-bottom:3px}
+.opc-id{font-family:var(--f-m);font-size:.55rem;color:var(--text-dead);letter-spacing:.1em;margin-bottom:8px}
+.opc-score{font-family:var(--f-d);font-size:1.6rem;letter-spacing:.05em}
+.opc-zone{font-family:var(--f-u);font-size:.6rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-top:2px}
+.opc-meta{font-family:var(--f-m);font-size:.54rem;color:var(--text-dead);margin-top:6px;letter-spacing:.06em}
+.opc-badge{display:inline-block;padding:2px 7px;border-radius:2px;font-family:var(--f-u);
+  font-size:.54rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-top:5px}
+.opc-badge.on-duty{background:rgba(0,255,157,.08);color:var(--plasma);border:1px solid rgba(0,255,157,.2)}
+.opc-badge.off-duty{background:rgba(26,48,80,.3);color:var(--text-dead);border:1px solid var(--w0)}
+
+/* Alerts feed */
+.alerts-feed{padding:14px 16px}
+.alerts-scroll{height:220px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--w2) transparent}
+.alerts-scroll::-webkit-scrollbar{width:3px}
+.alerts-scroll::-webkit-scrollbar-thumb{background:var(--w2);border-radius:2px}
+.alert-row{display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--w0);
+  align-items:flex-start;animation:row-in .2s ease}
+.ar-zone{font-family:var(--f-u);font-size:.58rem;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;padding:2px 6px;border-radius:2px;flex-shrink:0}
+.ar-zone.Y{background:rgba(255,204,0,.08);color:var(--nova);border:1px solid rgba(255,204,0,.2)}
+.ar-zone.R{background:rgba(255,31,78,.08);color:var(--flare);border:1px solid rgba(255,31,78,.2)}
+.ar-zone.E{background:rgba(255,140,0,.08);color:var(--amber);border:1px solid rgba(255,140,0,.2)}
+.ar-info{font-family:var(--f-m);font-size:.6rem;color:#5a8aaa;line-height:1.5;flex:1}
+.ar-time{font-family:var(--f-m);font-size:.56rem;color:var(--text-dead);white-space:nowrap}
+
+/* Register panel */
+.reg-panel{padding:16px 18px}
+.reg-form{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.reg-row{display:flex;gap:10px;align-items:center}
+.reg-input{background:var(--plating);border:1px solid var(--w1);border-radius:2px;
+  padding:8px 12px;color:var(--ion);font-family:var(--f-m);font-size:.82rem;
+  letter-spacing:.1em;outline:none;flex:1;transition:border-color .3s}
+.reg-input:focus{border-color:var(--ion)}
+.reg-input::placeholder{color:var(--text-dead)}
+.reg-list{margin-top:12px;display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto}
+.reg-item{display:flex;align-items:center;gap:10px;padding:7px 10px;
+  background:var(--plating);border-radius:2px;border:1px solid var(--w0)}
+.ri-name{font-family:var(--f-u);font-size:.7rem;color:var(--text-hi);flex:1}
+.ri-id{font-family:var(--f-m);font-size:.6rem;color:var(--ion-dim);letter-spacing:.1em}
+.ri-del{font-family:var(--f-m);font-size:.58rem;color:var(--flare);cursor:none;
+  padding:2px 8px;border:1px solid rgba(255,31,78,.3);border-radius:2px;background:none;
+  transition:all .3s;flex-shrink:0}
+.ri-del:hover{background:rgba(255,31,78,.1)}
+
+/* Report panel */
+.report-panel{padding:16px 18px}
+.report-sel{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.report-select{background:var(--plating);border:1px solid var(--w1);color:var(--text-mid);
+  font-family:var(--f-m);font-size:.62rem;padding:6px 10px;border-radius:2px;outline:none}
+.report-select option{background:var(--hull)}
+.report-body{font-family:var(--f-m);font-size:.64rem;color:var(--text-mid);line-height:1.8}
+.report-stat{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.rs-card{background:var(--plating);border-radius:2px;padding:10px 12px;border:1px solid var(--w0)}
+.rs-lbl{font-family:var(--f-m);font-size:.5rem;letter-spacing:.18em;color:var(--text-dead);text-transform:uppercase;margin-bottom:4px}
+.rs-val{font-family:var(--f-d);font-size:1.4rem;letter-spacing:.06em}
+.rs-val.g{color:var(--plasma)} .rs-val.y{color:var(--nova)} .rs-val.r{color:var(--flare)} .rs-val.ion{color:var(--ion)}
+.report-suggestion{background:rgba(0,207,255,.04);border:1px solid rgba(0,207,255,.15);
+  border-radius:2px;padding:10px 14px;margin-top:8px;
+  font-family:var(--f-m);font-size:.64rem;color:var(--text-mid);line-height:1.8}
+.trend-badge{display:inline-block;padding:2px 10px;border-radius:2px;font-family:var(--f-u);
+  font-size:.62rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px}
+.trend-badge.IMP{background:rgba(0,255,157,.08);color:var(--plasma);border:1px solid rgba(0,255,157,.2)}
+.trend-badge.WOR{background:rgba(255,31,78,.08);color:var(--flare);border:1px solid rgba(255,31,78,.2)}
+.trend-badge.STA{background:rgba(0,207,255,.06);color:var(--ion);border:1px solid rgba(0,207,255,.15)}
+.trend-badge.INS{background:rgba(26,48,80,.3);color:var(--text-dead);border:1px solid var(--w0)}
+.weekly-wrap{height:160px;position:relative;margin-top:10px}
+
+/* Section header */
+.sec-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.sec-title{font-family:var(--f-m);font-size:.56rem;font-weight:700;letter-spacing:.25em;
+  color:var(--text-low);text-transform:uppercase;display:flex;align-items:center;gap:7px}
+.sec-title::before{content:'';display:block;width:3px;height:12px;background:var(--ion);border-radius:1px;box-shadow:0 0 7px var(--ion)}
+.sec-count{font-family:var(--f-m);font-size:.56rem;color:var(--text-dead);letter-spacing:.1em}
+
+/* Footer */
+.footer{display:flex;align-items:center;background:var(--abyss);border:1px solid var(--w0);
+  border-radius:2px;overflow:hidden;font-family:var(--f-m);font-size:.56rem;
+  color:var(--text-dead);letter-spacing:.06em;position:relative}
+.footer::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;
+  background:linear-gradient(180deg,var(--ion),transparent)}
+.ft-seg{display:flex;align-items:center;gap:5px;padding:7px 14px;border-right:1px solid var(--w0);white-space:nowrap}
+.ft-seg:last-child{border-right:none;margin-left:auto}
+.ft-k{color:var(--text-low)} .ft-v{color:var(--text-mid)} .ft-ion{color:var(--ion)!important}
+
+/* Responsive */
+@media(max-width:1200px){
+  .op-grid{grid-template-columns:1fr}
+  .bio-grid{grid-template-columns:1fr 1fr}
+  .bio-row:nth-child(3n+1){border-right:none;padding-right:0}
+  .bio-row:nth-child(3n+2){border-right:none}
+  .bio-row:nth-child(3n){padding-left:0}
+  .bio-row:nth-child(odd){padding-right:10px;border-right:1px solid var(--w0)}
+  .bio-row:nth-child(even){padding-left:10px}
+  .cmd-grid{grid-template-columns:1fr}
+}
+@media(max-width:720px){
+  .score-big{font-size:5rem}
+  .zone-call{font-size:1.6rem}
+  .bio-grid{grid-template-columns:1fr}
+  .bio-row{border-right:none!important;padding-left:0!important;padding-right:0!important}
+  .report-stat{grid-template-columns:1fr 1fr}
+}
+@keyframes reveal{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+.shell>*{animation:reveal .5s cubic-bezier(.2,.8,.3,1) both}
+.shell>*:nth-child(1){animation-delay:.04s}.shell>*:nth-child(2){animation-delay:.1s}
+.shell>*:nth-child(3){animation-delay:.18s}.shell>*:nth-child(4){animation-delay:.26s}
+</style>
+</head>
+<body>
+
+<div class="cursor-ring" id="cursorRing"></div>
+<div class="cursor-dot" id="cursorDot"></div>
+<canvas id="particleCanvas"></canvas>
+<div class="scan"></div>
+<div class="zone-flash" id="zoneFlash"></div>
+<div class="alert-ring" id="alertRing"></div>
+<div class="eye-alert-ring" id="eyeAlertRing"></div>
+<canvas id="captureCanvas" style="display:none" width="320" height="240"></canvas>
+
+<div class="shell">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="tb-sec">
+      <div class="logo-hex">
+        <svg viewBox="0 0 40 40" fill="none">
+          <polygon points="20,2 36,11 36,29 20,38 4,29 4,11" stroke="rgba(0,240,255,.5)" stroke-width="1.5" fill="none"/>
+          <polygon points="20,8 30,14 30,26 20,32 10,26 10,14" stroke="rgba(0,240,255,.2)" stroke-width=".6" fill="none"/>
+          <line x1="20" y1="2" x2="20" y2="38" stroke="rgba(0,240,255,.1)" stroke-width=".5"/>
+          <line x1="4" y1="20" x2="36" y2="20" stroke="rgba(0,240,255,.1)" stroke-width=".5"/>
+          <line x1="20" y1="20" x2="20" y2="4" stroke="rgba(0,255,157,.85)" stroke-width="1.5" stroke-linecap="round">
+            <animateTransform attributeName="transform" type="rotate" from="0 20 20" to="360 20 20" dur="3s" repeatCount="indefinite"/>
+          </line>
+          <path d="M20,20 L20,4 A16,16 0 0,1 33.6,28" fill="rgba(0,255,157,.05)" stroke="none">
+            <animateTransform attributeName="transform" type="rotate" from="0 20 20" to="360 20 20" dur="3s" repeatCount="indefinite"/>
+          </path>
+          <circle cx="20" cy="20" r="2.5" fill="rgba(0,240,255,.8)"/>
+          <circle cx="20" cy="20" r="1.2" fill="white"><animate attributeName="opacity" values="1;.3;1" dur="2s" repeatCount="indefinite"/></circle>
+          <circle cx="27" cy="12" r="1.5" fill="rgba(0,255,157,.7)"><animate attributeName="opacity" values="0;.9;0" dur="3s" begin=".8s" repeatCount="indefinite"/></circle>
+          <circle cx="13" cy="27" r="1" fill="rgba(0,255,157,.5)"><animate attributeName="opacity" values="0;.7;0" dur="3s" begin="2s" repeatCount="indefinite"/></circle>
+        </svg>
+      </div>
+      <div class="logo-txt">
+        <h1>AEROCALM AI</h1>
+        <p>ATC Fatigue Monitoring System · V6.0</p>
+      </div>
+    </div>
+
+    <div class="tb-sec" style="flex:1;justify-content:center">
+      <div class="tab-bar">
+        <button class="tab-btn active" id="tabOperator" onclick="switchTab('operator')">OPERATOR PANEL</button>
+        <button class="tab-btn" id="tabCommand" onclick="switchTab('command')">COMMAND CENTRE</button>
+      </div>
+    </div>
+
+    <div class="tb-sec">
+      <div>
+        <div class="clock-hms" id="clockHms">00:00:00</div>
+        <div class="clock-date" id="clockDate">UTC</div>
+      </div>
+      <div class="conn-chip off" id="connChip">
+        <div class="chip-pip"></div>
+        <span id="connLabel">OFFLINE</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ OPERATOR VIEW ═══════════════ -->
+  <div class="view active" id="viewOperator">
+
+    <!-- Login panel (shown when no operator active) -->
+    <div class="panel login-panel" id="loginPanel">
+      <div class="panel-accent" style="--accent-col:var(--ion);--accent-glow:var(--ion-halo)"></div>
+      <div class="login-title">OPERATOR LOGIN</div>
+      <div class="login-sub">Enter your Operator ID to begin monitoring session</div>
+      <div class="login-row">
+        <input class="login-input" id="loginInput" type="text" placeholder="ATC-001" maxlength="16"
+          onkeydown="if(event.key==='Enter') loginOperator()"/>
+        <button class="btn" onclick="loginOperator()">▶ &nbsp;LOGIN</button>
+      </div>
+    </div>
+
+    <!-- Active session (hidden until login) -->
+    <div id="activeSession" style="display:none;flex-direction:column;gap:10px">
+
+      <!-- Duty control bar -->
+      <div class="duty-ctrl">
+        <div class="duty-info" id="dutyInfo">Not on duty</div>
+        <button class="btn" id="startDutyBtn" onclick="startDuty()">▶ START DUTY</button>
+        <button class="btn red" id="endDutyBtn" onclick="endDuty()" style="display:none">■ END DUTY</button>
+        <button class="btn amber sm" onclick="logoutOperator()" style="margin-left:8px">LOGOUT</button>
+      </div>
+
+      <!-- Eye warning banner -->
+      <div class="eye-banner" id="eyeBanner">
+        <div class="eye-icon">👁️</div>
+        <div class="eye-txt" id="eyeTxt">Eyes closed detected — please remain alert.</div>
+        <div class="eye-time" id="eyeTime"></div>
+      </div>
+
+      <div class="op-grid">
+        <div class="op-left">
+
+          <!-- Hero score / Calibration -->
+          <div class="panel" id="heroPanel">
+            <div class="panel-accent" id="heroAccent"></div>
+            <div class="panel-tag" id="heroPanelTag">FATIGUE ASSESSMENT · REAL-TIME</div>
+
+            <!-- Calibrating state -->
+            <div class="calib-bar" id="calibBar" style="display:none">
+              <div class="calib-title">BUILDING VOICE PROFILE</div>
+              <div class="calib-msg">
+                Speak naturally. The system is recording your personal vocal baseline.<br>
+                This is a one-time process — future sessions load instantly.
+              </div>
+              <div class="calib-pct" id="calibPct">0%</div>
+              <div class="calib-track"><div class="calib-fill" id="calibFill" style="width:0%"></div></div>
+            </div>
+
+            <!-- Active scoring -->
+            <div id="scoringDiv" style="padding:22px 28px;display:none">
+              <div class="hero-hdr">
+                <div>
+                  <div class="hero-ident">MONITORING OPERATOR</div>
+                  <div class="hero-name" id="heroName">──</div>
+                </div>
+                <div class="hero-elapsed">
+                  <div class="elapsed-lbl">Session Elapsed</div>
+                  <div class="elapsed-val" id="elapsedVal">──:──</div>
+                </div>
+              </div>
+              <div class="score-row">
+                <div class="score-big" id="scoreBig" data-s="──">──</div>
+                <div class="score-meta">
+                  <div class="zone-call" id="zoneCall">STANDBY</div>
+                  <div class="zone-msg" id="zoneMsg">Awaiting stream…</div>
+                  <div class="denom">/ 100 · FATIGUE INDEX</div>
+                </div>
+              </div>
+              <div class="gauge-wrap">
+                <div class="gauge-lbls"><span>FIT</span><span>ELEVATED</span><span>CRITICAL</span></div>
+                <div class="gauge-rail">
+                  <div class="gauge-grad"></div>
+                  <div class="gauge-fill" id="gaugeFill" style="width:0%"></div>
+                  <div class="gauge-needle" id="gaugeNeedle" style="left:0%"></div>
+                  <div class="gauge-thresh" style="left:40%" data-v="40"></div>
+                  <div class="gauge-thresh" style="left:65%" data-v="65"></div>
+                </div>
+                <div class="zone-strip"><div class="zs-g"></div><div class="zs-y"></div><div class="zs-r"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 9 Biomarkers -->
+          <div class="panel bio-panel">
+            <div class="panel-accent" style="--accent-col:var(--plasma);--accent-glow:var(--plasma-halo)"></div>
+            <div class="panel-tag">9-BIOMARKER VOICE DECOMPOSITION · ALL REAL</div>
+            <div class="bio-grid" style="padding-top:16px">
+              <div class="bio-row">
+                <div class="bio-hdr"><span class="bio-name">RMS Energy</span><span class="bio-score" id="bRms">──</span></div>
+                <div class="bio-wt">10% · amplitude</div>
+                <div class="bio-track"><div class="bio-fill rms" id="bRmsF" style="width:0%"></div></div>
+              </div>
+              <div class="bio-row">
+                <div class="bio-hdr"><span class="bio-name">Spectral Flat.</span><span class="bio-score" id="bFlat">──</span></div>
+                <div class="bio-wt">5% · breathiness</div>
+                <div class="bio-track"><div class="bio-fill flat" id="bFlatF" style="width:0%"></div></div>
+              </div>
+              <div class="bio-row">
+                <div class="bio-hdr"><span class="bio-name">Jitter RAP</span><span class="bio-score" id="bJit">──</span></div>
+                <div class="bio-wt">18% · F0 instability</div>
+                <div class="bio-track"><div class="bio-fill jitter" id="bJitF" style="width:0%"></div></div>
+              </div>
+              <div class="bio-row">
+                <div class="bio-hdr"><span class="bio-name">Shimmer dB</span><span class="bio-score" id="bShim">──</span></div>
+                <div class="bio-wt">18% · breath support</div>
+                <div class="bio-track"><div class="bio-fill shim" id="bShimF" style="width:0%"></div></div>
+              </div>
+              <div class="bio-row">
+                <div class="bio-hdr"><span class="bio-name">F0 Drop</span><span class="bio-score" id="bF0">──</span></div>
+                <div class="bio-wt">10% · pitch decline</div>
+                <div class="bio-track"><div class="bio-fill f0" id="bF0F" style="width:0%"></div></div>
+              </div>
+              <div class="bio-row">
+                <div class="bio-hdr"><span class="bio-name">Formant Slug.</span><span class="bio-score" id="bForm">──</span></div>
+                <div class="bio-wt">5% · articulation</div>
+                <div class="bio-track"><div class="bio-fill form" id="bFormF" style="width:0%"></div></div>
+              </div>
+              <div class="bio-row">
+                <div class="bio-hdr"><span class="bio-name" style="color:var(--ion)">HNR</span><span class="bio-score" id="bHnr" style="color:#00d4ff">──</span></div>
+                <div class="bio-wt">14% · vocal health</div>
+                <div class="bio-track"><div class="bio-fill hnr" id="bHnrF" style="width:0%"></div></div>
+              </div>
+              <div class="bio-row">
+                <div class="bio-hdr"><span class="bio-name" style="color:var(--nova)">Speech Rate</span><span class="bio-score" id="bSR" style="color:var(--nova)">──</span></div>
+                <div class="bio-wt">12% · cognitive load</div>
+                <div class="bio-track"><div class="bio-fill speech" id="bSRF" style="width:0%"></div></div>
+              </div>
+              <div class="bio-row">
+                <div class="bio-hdr"><span class="bio-name" style="color:#cc44ff">MFCC Dev.</span><span class="bio-score" id="bMfcc" style="color:#cc44ff">──</span></div>
+                <div class="bio-wt">8% · voice fingerprint</div>
+                <div class="bio-track"><div class="bio-fill mfcc" id="bMfccF" style="width:0%"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chart -->
+          <div class="panel chart-panel">
+            <div class="panel-accent" style="--accent-col:var(--ion);--accent-glow:var(--ion-halo)"></div>
+            <div class="panel-tag">FATIGUE TELEMETRY · SESSION TREND</div>
+            <div class="chart-hdr">
+              <div class="chart-leg">
+                <div class="leg-i"><div class="leg-d" style="background:var(--ion)"></div><span>Score</span></div>
+                <div class="leg-i"><div class="leg-d" style="background:var(--nova);opacity:.6"></div><span>40</span></div>
+                <div class="leg-i"><div class="leg-d" style="background:var(--flare);opacity:.6"></div><span>65</span></div>
+              </div>
+              <div class="chart-kpis">
+                <div class="kpi">AVG <strong id="kpiAvg">──</strong></div>
+                <div class="kpi">MAX <strong id="kpiMax">──</strong></div>
+              </div>
+            </div>
+            <div class="chart-wrap"><canvas id="fatigueChart"></canvas></div>
+          </div>
+
+          <!-- Today's stamps -->
+          <div class="panel stamps-panel">
+            <div class="panel-accent" style="--accent-col:var(--ion);--accent-glow:var(--ion-halo)"></div>
+            <div class="panel-tag">TODAY'S 5-MINUTE EPOCH STAMPS</div>
+            <div class="sec-hdr" style="margin-top:14px">
+              <div class="sec-title">Epoch History</div>
+              <span class="sec-count" id="stampCount">0 stamps</span>
+            </div>
+            <div class="stamp-scroll" id="stampScroll"></div>
+          </div>
+
+        </div>
+
+        <!-- Right instruments -->
+        <div class="op-right">
+          <div class="panel instr">
+            <div class="panel-accent" style="--accent-col:var(--ion);--accent-glow:var(--ion-halo)"></div>
+            <div class="instr-lbl"><span class="instr-pip"></span>Chunks</div>
+            <div class="instr-val" id="instrChunks">0</div>
+            <div class="instr-sub" id="instrSub">audio packets</div>
+          </div>
+          <div class="panel instr">
+            <div class="panel-accent" style="--accent-col:var(--ion);--accent-glow:var(--ion-halo)"></div>
+            <div class="instr-lbl"><span class="instr-pip"></span>Buffer Fill</div>
+            <div class="instr-val" id="instrBuf">0%</div>
+            <div class="instr-sub">5-sec ring buffer</div>
+            <div class="instr-bar"><div class="instr-bar-fill" id="instrBufBar" style="width:0%"></div></div>
+          </div>
+          <div class="panel instr peak">
+            <div class="panel-accent"></div>
+            <div class="instr-lbl"><span class="instr-pip"></span>Session Peak</div>
+            <div class="instr-val" id="instrPeak">──</div>
+            <div class="instr-sub">Maximum score</div>
+          </div>
+          <div class="panel instr">
+            <div class="panel-accent" style="--accent-col:var(--ion);--accent-glow:var(--ion-halo)"></div>
+            <div class="instr-lbl"><span class="instr-pip"></span>Confidence</div>
+            <div class="instr-val" id="instrConf">──</div>
+            <div class="instr-sub">speech quality</div>
+            <div class="instr-bar"><div class="instr-bar-fill" id="instrConfBar" style="width:0%;background:linear-gradient(90deg,var(--nova-dim),var(--nova))"></div></div>
+          </div>
+          <div class="panel instr">
+            <div class="panel-accent" style="--accent-col:var(--plasma);--accent-glow:var(--plasma-halo)"></div>
+            <div class="instr-lbl"><span class="instr-pip" style="background:var(--plasma);box-shadow:0 0 6px var(--plasma)"></span>Voice Engine</div>
+            <div class="instr-val" style="font-size:1rem;color:var(--plasma)">9-BIO</div>
+            <div class="instr-sub">voice-only 100%</div>
+            <div class="status-badge ok">ACTIVE</div>
+          </div>
+          <div class="panel instr">
+            <div class="panel-accent" style="--accent-col:var(--nova);--accent-glow:var(--nova-halo)"></div>
+            <div class="instr-lbl"><span class="instr-pip" style="background:var(--nova);box-shadow:0 0 6px var(--nova)"></span>Eye Monitor</div>
+            <div class="instr-val" style="font-size:1rem;color:var(--nova)" id="eyeStatus">STANDBY</div>
+            <div class="instr-sub" id="eyeSub">camera optional</div>
+            <div class="status-badge idle" id="eyeBadge">WARNING ONLY</div>
+          </div>
+          <div class="panel instr">
+            <div class="panel-accent" style="--accent-col:var(--ion);--accent-glow:var(--ion-halo)"></div>
+            <div class="instr-lbl"><span class="instr-pip"></span>Next Epoch</div>
+            <div class="instr-val" id="instrEpoch" style="font-size:1.4rem">5:00</div>
+            <div class="instr-sub">5-min window</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /viewOperator -->
+
+  <!-- ═══════════════ COMMAND CENTRE VIEW ═══════════════ -->
+  <div class="view" id="viewCommand">
+
+    <div class="cmd-grid">
+
+      <!-- Operator status cards -->
+      <div class="panel op-cards">
+        <div class="panel-accent" style="--accent-col:var(--ion);--accent-glow:var(--ion-halo)"></div>
+        <div class="panel-tag">ALL OPERATORS · TODAY'S STATUS</div>
+        <div class="sec-hdr" style="margin-top:14px">
+          <div class="sec-title">Operator Dashboard</div>
+          <button class="btn sm" onclick="refreshDashboard()">REFRESH</button>
+        </div>
+        <div class="op-card-grid" id="opCardGrid">
+          <div style="font-family:var(--f-m);font-size:.64rem;color:var(--text-dead);padding:20px;letter-spacing:.1em">
+            Loading operators…
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent alerts -->
+      <div class="panel alerts-feed">
+        <div class="panel-accent" style="--accent-col:var(--flare);--accent-glow:var(--flare-halo)"></div>
+        <div class="panel-tag">RECENT ALERTS FEED</div>
+        <div class="sec-hdr" style="margin-top:14px">
+          <div class="sec-title">Fatigue & Eye Events</div>
+          <button class="btn sm" onclick="refreshAlerts()">REFRESH</button>
+        </div>
+        <div class="alerts-scroll" id="alertsScroll">
+          <div style="font-family:var(--f-m);font-size:.64rem;color:var(--text-dead);padding:16px;letter-spacing:.1em">
+            Loading alerts…
+          </div>
+        </div>
+      </div>
+
+      <!-- Register new operator -->
+      <div class="panel reg-panel">
+        <div class="panel-accent" style="--accent-col:var(--plasma);--accent-glow:var(--plasma-halo)"></div>
+        <div class="panel-tag">OPERATOR REGISTRATION</div>
+        <div class="sec-hdr" style="margin-top:14px">
+          <div class="sec-title">Register ATC Operator</div>
+        </div>
+        <div class="reg-form">
+          <div class="reg-row">
+            <input class="reg-input" id="regId" type="text" placeholder="Operator ID (e.g. ATC-001)" maxlength="16"/>
+            <input class="reg-input" id="regName" type="text" placeholder="Full Name" maxlength="40"/>
+            <button class="btn sm" onclick="registerOperator()">+ ADD</button>
+          </div>
+          <div id="regList" class="reg-list"></div>
+        </div>
+      </div>
+
+      <!-- Reports panel -->
+      <div class="panel report-panel">
+        <div class="panel-accent" style="--accent-col:var(--nova);--accent-glow:var(--nova-halo)"></div>
+        <div class="panel-tag">DAILY & WEEKLY REPORTS</div>
+        <div class="sec-hdr" style="margin-top:14px">
+          <div class="sec-title">Operator Reports</div>
+        </div>
+        <div class="report-sel">
+          <select class="report-select" id="reportOpSel"></select>
+          <select class="report-select" id="reportType">
+            <option value="daily">Daily Report</option>
+            <option value="weekly">Weekly Report (7 days)</option>
+          </select>
+          <input type="date" class="report-select" id="reportDate"/>
+          <button class="btn sm" onclick="loadReport()">VIEW</button>
+        </div>
+        <div id="reportBody" class="report-body">
+          <div style="color:var(--text-dead);font-size:.64rem;letter-spacing:.1em;padding:20px 0;text-align:center">
+            Select an operator and click VIEW to generate report.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div><!-- /viewCommand -->
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="ft-seg"><span class="ft-k">SYS</span><span class="ft-v">AeroCalm AI V6.0</span></div>
+    <div class="ft-seg"><span class="ft-k">MODE</span><span class="ft-v">ATC · Voice-Only</span></div>
+    <div class="ft-seg"><span class="ft-k">EPOCH</span><span class="ft-v">5 MIN AVG</span></div>
+    <div class="ft-seg"><span class="ft-k">BIOMARKERS</span><span class="ft-v">9 VOICE + EYE WARN</span></div>
+    <div class="ft-seg"><span class="ft-k">HOST</span><span class="ft-ion ft-v" id="ftHost">127.0.0.1:8000</span></div>
+    <div class="ft-seg"><span class="ft-k">STATUS</span><span class="ft-v" id="ftStatus">NOMINAL</span></div>
+  </div>
+
+</div><!-- /shell -->
+
+<script>
+'use strict';
+
+const API  = 'http://127.0.0.1:8000';
+const WS   = 'ws://127.0.0.1:8000';
+const VIDEO_MS = 500;
+const AUDIO_CHUNK = 4096;
+const EPOCH_SEC = 300;
+
+// State
+let ws = null, audioCtx = null, audioStream = null, camStream = null;
+let sessionActive = false, reconnectTimer = null, reconnectCount = 0;
+let videoTimer = null, epochTimer = null;
+let currentOp = null, currentOpName = '', sessionId = null;
+let onDuty = false;
+let sessionPeak = null;
+const allScores = [], chartTimes = [], chartVals = [];
+let prevZone = null, logCount = 0;
+let stampCount = 0;
+let epochSec = EPOCH_SEC;
+
+/* CURSOR */
+const ring = document.getElementById('cursorRing'), dot = document.getElementById('cursorDot');
+let mx=0,my=0,rx=0,ry=0;
+document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY});
+(function a(){rx+=(mx-rx)*.12;ry+=(my-ry)*.12;ring.style.left=rx+'px';ring.style.top=ry+'px';dot.style.left=mx+'px';dot.style.top=my+'px';requestAnimationFrame(a)})();
+document.querySelectorAll('button,input,select,a').forEach(el=>{
+  el.addEventListener('mouseenter',()=>{ring.style.width='42px';ring.style.height='42px';ring.style.borderColor='var(--plasma)'});
+  el.addEventListener('mouseleave',()=>{ring.style.width='26px';ring.style.height='26px';ring.style.borderColor='var(--ion)'});
+});
+
+/* PARTICLES */
+const pcvs=document.getElementById('particleCanvas'), pctx=pcvs.getContext('2d');
+function resizeP(){pcvs.width=innerWidth;pcvs.height=innerHeight}resizeP();window.addEventListener('resize',resizeP);
+const pts=Array.from({length:45},()=>({x:Math.random()*innerWidth,y:Math.random()*innerHeight,vx:(Math.random()-.5)*.25,vy:(Math.random()-.5)*.25,r:Math.random()*1+.3,a:Math.random()*.4+.1}));
+(function dp(){pctx.clearRect(0,0,pcvs.width,pcvs.height);pts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=pcvs.width;if(p.x>pcvs.width)p.x=0;if(p.y<0)p.y=pcvs.height;if(p.y>pcvs.height)p.y=0;pctx.beginPath();pctx.arc(p.x,p.y,p.r,0,Math.PI*2);pctx.fillStyle=`rgba(0,240,255,${p.a})`;pctx.fill()});
+for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){const dx=pts[i].x-pts[j].x,dy=pts[i].y-pts[j].y,d=Math.sqrt(dx*dx+dy*dy);if(d<85){pctx.beginPath();pctx.moveTo(pts[i].x,pts[i].y);pctx.lineTo(pts[j].x,pts[j].y);pctx.strokeStyle=`rgba(0,240,255,${.05*(1-d/85)})`;pctx.lineWidth=.5;pctx.stroke()}}requestAnimationFrame(dp)})();
+
+/* CLOCK */
+function tickClock(){const n=new Date();document.getElementById('clockHms').textContent=n.toTimeString().slice(0,8);document.getElementById('clockDate').textContent=n.toUTCString().slice(5,16).toUpperCase()+' UTC'}
+setInterval(tickClock,1000);tickClock();
+
+/* TAB */
+function switchTab(tab){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('view'+tab.charAt(0).toUpperCase()+tab.slice(1)).classList.add('active');
+  document.getElementById('tab'+tab.charAt(0).toUpperCase()+tab.slice(1)).classList.add('active');
+  if(tab==='command'){refreshDashboard();refreshAlerts();loadRegList();loadReportOps()}
+}
+
+/* CHART */
+const chartCtx=document.getElementById('fatigueChart').getContext('2d');
+const fatigueChart=new Chart(chartCtx,{
+  type:'line',data:{labels:chartTimes,datasets:[{data:chartVals,borderColor:'#00f0ff',
+    backgroundColor:ctx=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,140);g.addColorStop(0,'rgba(0,240,255,.14)');g.addColorStop(1,'rgba(0,240,255,0)');return g},
+    borderWidth:1.8,pointRadius:2.5,pointBackgroundColor:[],pointBorderColor:'transparent',tension:.42,fill:true}]},
+  options:{responsive:true,maintainAspectRatio:false,animation:{duration:280},interaction:{mode:'index',intersect:false},
+    plugins:{legend:{display:false},tooltip:{backgroundColor:'#050a14',borderColor:'rgba(0,180,255,.3)',borderWidth:1,
+      titleColor:'#3a6080',bodyColor:'#eaf4ff',titleFont:{family:'JetBrains Mono',size:10},
+      bodyFont:{family:'Bebas Neue',size:14,weight:'400'},callbacks:{label:c=>` ${c.parsed.y.toFixed(1)}`}}},
+    scales:{x:{grid:{color:'rgba(0,100,180,.1)'},ticks:{color:'#1a3050',font:{family:'JetBrains Mono',size:9},maxTicksLimit:8,maxRotation:0},border:{color:'rgba(0,100,180,.2)'}},
+      y:{min:0,max:100,grid:{color:'rgba(0,100,180,.1)'},ticks:{color:'#1a3050',font:{family:'JetBrains Mono',size:9},stepSize:25,callback:v=>String(v).padStart(3)},border:{color:'rgba(0,100,180,.2)'}}}}}
+);
+function zonePtCol(v){return v>=65?'#ff1f4e':v>=40?'#ffcc00':'#00ff9d'}
+function pushChart(ts,score){
+  if(chartTimes.length>=60){chartTimes.shift();chartVals.shift()}
+  chartTimes.push(ts);chartVals.push(score);
+  fatigueChart.data.datasets[0].pointBackgroundColor=chartVals.map(zonePtCol);
+  fatigueChart.update('none')}
+
+/* ZONE */
+const ZONES={
+  GREEN: {col:'#00ff9d',glow:'rgba(0,255,157,.3)',border:'rgba(0,255,157,.42)',flash:'rgba(0,255,157,1)'},
+  YELLOW:{col:'#ffcc00',glow:'rgba(255,204,0,.3)',border:'rgba(255,204,0,.42)',flash:'rgba(255,204,0,1)'},
+  RED:   {col:'#ff1f4e',glow:'rgba(255,31,78,.32)',border:'rgba(255,31,78,.48)',flash:'rgba(255,31,78,1)'}};
+
+function applyZone(d){
+  const s=ZONES[d.zone]||ZONES.GREEN;
+  if(d.zone!==prevZone&&prevZone!==null){
+    const fl=document.getElementById('zoneFlash');fl.style.background=s.flash;
+    fl.classList.add('bang');setTimeout(()=>fl.classList.remove('bang'),55);setTimeout(()=>{fl.style.opacity=0},85)}
+  prevZone=d.zone;
+  const hero=document.getElementById('heroPanel');
+  hero.style.setProperty('--zone-col',s.col);hero.style.setProperty('--zone-glow',s.glow);hero.style.borderColor=s.border;
+  document.getElementById('heroAccent').style.cssText=`--accent-col:${s.col};--accent-glow:${s.glow}`;
+  const big=document.getElementById('scoreBig');
+  big.textContent=d.fatigue_score.toFixed(1);big.dataset.s=d.fatigue_score.toFixed(1);
+  document.getElementById('zoneCall').textContent=d.label;
+  document.getElementById('zoneMsg').textContent=d.message;
+  const pct=Math.min(d.fatigue_score,100);
+  document.getElementById('gaugeFill').style.width=pct+'%';
+  document.getElementById('gaugeNeedle').style.left=pct+'%';
+  document.getElementById('alertRing').className=d.zone==='RED'?'alert-ring on':'alert-ring';
+  document.getElementById('ftStatus').textContent={GREEN:'NOMINAL',YELLOW:'CAUTION',RED:'ALERT'}[d.zone];
+  if(d.sub_scores){
+    const ss=d.sub_scores;
+    const set=(id,fid,v)=>{document.getElementById(id).textContent=typeof v==='number'?v.toFixed(1):'──';document.getElementById(fid).style.width=Math.min(v||0,100)+'%'};
+    set('bRms','bRmsF',ss.rms);set('bFlat','bFlatF',ss.flatness);
+    set('bJit','bJitF',ss.jitter);set('bShim','bShimF',ss.shimmer);
+    set('bF0','bF0F',ss.f0_drop);set('bForm','bFormF',ss.formant_sluggishness);
+    set('bHnr','bHnrF',ss.hnr);set('bSR','bSRF',ss.speech_rate);
+    set('bMfcc','bMfccF',ss.mfcc_deviation);}
+  const sc=d.fatigue_score;
+  allScores.push(sc);
+  document.getElementById('kpiAvg').textContent=(allScores.reduce((a,b)=>a+b,0)/allScores.length).toFixed(1);
+  if(sessionPeak===null||sc>sessionPeak){sessionPeak=sc;document.getElementById('instrPeak').textContent=sc.toFixed(1)}
+  document.getElementById('instrChunks').textContent=d.chunk_count;
+  document.getElementById('instrSub').textContent=`${d.session_elapsed} elapsed`;
+  document.getElementById('instrBuf').textContent=d.buffer_fill_pct+'%';
+  document.getElementById('instrBufBar').style.width=d.buffer_fill_pct+'%';
+  document.getElementById('instrConf').textContent=(d.confidence||0).toFixed(0)+'%';
+  document.getElementById('instrConfBar').style.width=(d.confidence||0)+'%';
+  document.getElementById('elapsedVal').textContent=d.session_elapsed||'──:──';
+  document.getElementById('kpiMax').textContent=sessionPeak?.toFixed(1)||'──';
+  pushChart(d.timestamp,sc)}
+
+/* STAMP */
+function addStamp(d){
+  stampCount++;
+  document.getElementById('stampCount').textContent=stampCount+' stamps';
+  const scroll=document.getElementById('stampScroll');
+  const zc={GREEN:'G',YELLOW:'Y',RED:'R'}[d.zone]||'G';
+  const row=document.createElement('div');row.className='stamp-row';
+  row.innerHTML=`<span class="st-time">${new Date().toTimeString().slice(0,8)}</span>
+    <span class="st-zone ${zc}">${d.zone}</span>
+    <span class="st-detail">
+      Avg: ${d.avg_score?.toFixed(1)} · Speech: ${d.speech_chunks} chunks · 
+      G:${d.green_count} Y:${d.yellow_count} R:${d.red_count}<br>
+      ${d.alert_message||''}
+    </span>`;
+  scroll.prepend(row);
+  while(scroll.children.length>50)scroll.removeChild(scroll.lastChild)}
+
+/* EYE WARNING */
+let eyeTimer = null;
+function showEyeWarning(d){
+  document.getElementById('eyeBanner').classList.add('show');
+  document.getElementById('eyeTxt').textContent=d.message||'Eyes closed too long detected.';
+  document.getElementById('eyeTime').textContent=d.duration_sec?.toFixed(1)+'s';
+  document.getElementById('eyeAlertRing').classList.add('on');
+  clearTimeout(eyeTimer);
+  eyeTimer=setTimeout(()=>{
+    document.getElementById('eyeBanner').classList.remove('show');
+    document.getElementById('eyeAlertRing').classList.remove('on');
+  },6000)}
+
+/* EPOCH COUNTDOWN */
+function startEpochTimer(){
+  epochSec=EPOCH_SEC;clearInterval(epochTimer);
+  epochTimer=setInterval(()=>{
+    epochSec=Math.max(0,epochSec-1);
+    const m=Math.floor(epochSec/60),s=epochSec%60;
+    document.getElementById('instrEpoch').textContent=`${m}:${String(s).padStart(2,'0')}`;
+    if(epochSec===0)epochSec=EPOCH_SEC;
+  },1000)}
+
+/* CONNECTION */
+function setConn(state){
+  const chip=document.getElementById('connChip');chip.className='conn-chip '+state;
+  document.getElementById('connLabel').textContent={live:'LIVE',warn:'RECONNECT',off:'OFFLINE'}[state]?.toUpperCase()||state.toUpperCase()}
+
+/* OPERATOR LOGIN */
+async function loginOperator(){
+  const id=document.getElementById('loginInput').value.trim().toUpperCase();
+  if(!id){alert('Enter your Operator ID');return}
+  try{
+    const res=await fetch(`${API}/api/operators`);
+    const data=await res.json();
+    const op=data.operators?.find(o=>o.operator_id===id);
+    if(!op){alert(`Operator '${id}' not registered. Contact your supervisor.`);return}
+    currentOp=id;currentOpName=op.name;
+    document.getElementById('loginPanel').style.display='none';
+    document.getElementById('activeSession').style.display='flex';
+    document.getElementById('heroName').textContent=op.name;
+    document.getElementById('dutyInfo').textContent=`Logged in: ${op.name} (${id})`;
+    // Check existing active session
+    const sr=await fetch(`${API}/api/session/active/${id}`);
+    const sd=await sr.json();
+    if(sd.active){
+      sessionId=sd.session_id;onDuty=true;
+      document.getElementById('startDutyBtn').style.display='none';
+      document.getElementById('endDutyBtn').style.display='';
+      document.getElementById('dutyInfo').textContent=`On Duty: ${op.name} (${id}) · Session ${sessionId}`;
+      connectWS(id)}
+    else{
+      document.getElementById('heroPanelTag').textContent='OPERATOR LOGGED IN · PRESS START DUTY';
+      document.getElementById('calibBar').style.display='flex';
+      document.getElementById('calibBar').querySelector('.calib-title').textContent='READY';
+      document.getElementById('calibBar').querySelector('.calib-msg').textContent='Press START DUTY to begin monitoring session.';}
+  }catch(e){alert('Cannot connect to server. Make sure backend is running.')}
+}
+
+function logoutOperator(){
+  if(sessionActive)stopWS();
+  currentOp=null;currentOpName='';sessionId=null;onDuty=false;
+  document.getElementById('loginPanel').style.display='';
+  document.getElementById('activeSession').style.display='none';
+  document.getElementById('loginInput').value='';
+  document.getElementById('startDutyBtn').style.display='';
+  document.getElementById('endDutyBtn').style.display='none';
+  resetScoring();setConn('off')}
+
+async function startDuty(){
+  if(!currentOp)return;
+  try{
+    const res=await fetch(`${API}/api/session/start`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operator_id:currentOp})});
+    const data=await res.json();
+    sessionId=data.session_id;onDuty=true;
+    document.getElementById('startDutyBtn').style.display='none';
+    document.getElementById('endDutyBtn').style.display='';
+    document.getElementById('dutyInfo').textContent=`On Duty: ${currentOpName} (${currentOp}) · Session ${sessionId}`;
+    allScores.length=0;chartTimes.length=0;chartVals.length=0;
+    fatigueChart.update('none');sessionPeak=null;prevZone=null;stampCount=0;
+    document.getElementById('stampCount').textContent='0 stamps';
+    document.getElementById('stampScroll').innerHTML='';
+    connectWS(currentOp);startEpochTimer();
+  }catch(e){alert('Could not start session. Check backend.')}
+}
+
+async function endDuty(){
+  if(!confirm('End duty session?'))return;
+  stopWS();
+  try{
+    const res=await fetch(`${API}/api/session/end`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operator_id:currentOp})});
+    const data=await res.json();
+    alert(`Duty ended.\nDuration: ${data.duration_min?.toFixed(0)} min\nAvg score: ${data.avg_score}\nStamps: ${data.stamp_count}`);
+  }catch(e){}
+  onDuty=false;clearInterval(epochTimer);
+  document.getElementById('startDutyBtn').style.display='';
+  document.getElementById('endDutyBtn').style.display='none';
+  document.getElementById('dutyInfo').textContent=`Logged in: ${currentOpName} (${currentOp}) · Duty ended`;
+  resetScoring()}
+
+/* WEBSOCKET */
+function connectWS(opId){
+  if(ws&&ws.readyState<2)ws.close();
+  const url=`${WS}/ws/atc/${encodeURIComponent(opId)}`;
+  ws=new WebSocket(url);ws.binaryType='arraybuffer';
+  sessionActive=true;
+  ws.onopen=()=>{reconnectCount=0;clearTimeout(reconnectTimer);setConn('live');startAudio();startCamera()};
+  ws.onmessage=e=>{try{handleMsg(JSON.parse(e.data))}catch(err){console.warn(err)}};
+  ws.onerror=e=>{console.error('[WS]',e)};
+  ws.onclose=e=>{setConn(sessionActive?'warn':'off');
+    if(sessionActive&&reconnectCount<8){reconnectCount++;reconnectTimer=setTimeout(()=>connectWS(opId),2500)}
+    else if(reconnectCount>=8){sessionActive=false;setConn('off')}}}
+
+function stopWS(){
+  sessionActive=false;clearTimeout(reconnectTimer);
+  stopAudio();stopCamera();ws?.close(1000,'duty ended');ws=null;setConn('off')}
+
+function handleMsg(d){
+  if(d.type==='handshake'){
+    document.getElementById('heroName').textContent=d.operator_name;
+    if(d.baseline_ready){showScoring()}else{showCalibrating(0)};return}
+  if(d.type==='calibrating'){showCalibrating(d.progress||0);return}
+  if(d.type==='baseline_ready'){showScoring();return}
+  if(d.type==='analysis'){showScoring();applyZone(d);return}
+  if(d.type==='stamp'){addStamp(d);epochSec=EPOCH_SEC;return}
+  if(d.type==='eye_warning'){showEyeWarning(d);return}
+  if(d.type==='baseline_upgraded'){console.log('Baseline upgraded');return}
+  if(d.type==='timeout'){stopWS()}}
+
+function showCalibrating(pct){
+  document.getElementById('calibBar').style.display='flex';
+  document.getElementById('scoringDiv').style.display='none';
+  document.getElementById('calibPct').textContent=Math.round(pct)+'%';
+  document.getElementById('calibFill').style.width=pct+'%';
+  document.getElementById('calibBar').querySelector('.calib-title').textContent='BUILDING VOICE PROFILE';
+  document.getElementById('calibBar').querySelector('.calib-msg').textContent='Speak naturally. One-time calibration in progress.';}
+
+function showScoring(){
+  document.getElementById('calibBar').style.display='none';
+  document.getElementById('scoringDiv').style.display='';}
+
+function resetScoring(){
+  document.getElementById('scoreBig').textContent='──';
+  document.getElementById('scoreBig').dataset.s='──';
+  document.getElementById('zoneCall').textContent='STANDBY';
+  document.getElementById('zoneMsg').textContent='Awaiting stream…';
+  document.getElementById('gaugeFill').style.width='0%';
+  document.getElementById('gaugeNeedle').style.left='0%';
+  document.getElementById('alertRing').className='alert-ring';
+  document.getElementById('heroPanel').style.borderColor='';
+  document.getElementById('heroPanel').style.setProperty('--zone-col','var(--text-dead)');
+  document.getElementById('heroPanel').style.setProperty('--zone-glow','transparent');
+  document.getElementById('instrPeak').textContent='──';
+  document.getElementById('kpiAvg').textContent='──';document.getElementById('kpiMax').textContent='──';
+  document.getElementById('instrBuf').textContent='0%';document.getElementById('instrBufBar').style.width='0%';
+  document.getElementById('instrConf').textContent='──';document.getElementById('instrConfBar').style.width='0%';
+  document.getElementById('ftStatus').textContent='NOMINAL';
+  document.getElementById('instrEpoch').textContent='5:00';
+  showCalibrating(0);}
+
+/* AUDIO */
+async function startAudio(){
+  try{
+    audioStream=await navigator.mediaDevices.getUserMedia({audio:{sampleRate:{ideal:22050},echoCancellation:true,noiseSuppression:true,autoGainControl:false},video:false});
+    audioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:22050});
+    const src=audioCtx.createMediaStreamSource(audioStream);
+    const proc=audioCtx.createScriptProcessor(AUDIO_CHUNK,1,1);
+    proc.onaudioprocess=e=>{if(!sessionActive||!ws||ws.readyState!==WebSocket.OPEN)return;ws.send(e.inputBuffer.getChannelData(0).buffer)};
+    src.connect(proc);proc.connect(audioCtx.destination);
+  }catch(err){console.error('Mic:',err)}}
+
+function stopAudio(){audioStream?.getTracks().forEach(t=>t.stop());audioStream=null;try{audioCtx?.close()}catch(e){}audioCtx=null}
+
+/* CAMERA (eye warning only) */
+async function startCamera(){
+  try{
+    camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:320,height:240,frameRate:{ideal:15}},audio:false});
+    const v=document.createElement('video');v.srcObject=camStream;v.autoplay=true;v.muted=true;v.playsInline=true;
+    document.getElementById('captureCanvas').style.display='none';
+    document.getElementById('eyeStatus').textContent='ACTIVE';
+    document.getElementById('eyeSub').textContent='3sec closure = warning';
+    document.getElementById('eyeBadge').className='status-badge ok';
+    document.getElementById('eyeBadge').textContent='MONITORING';
+    const cvs=document.getElementById('captureCanvas');
+    const ctx=cvs.getContext('2d');
+    videoTimer=setInterval(()=>{
+      if(!sessionActive||!ws||ws.readyState!==WebSocket.OPEN||!v.videoWidth)return;
+      ctx.drawImage(v,0,0,320,240);
+      const b64=cvs.toDataURL('image/jpeg',.6).split(',')[1];
+      ws.send(JSON.stringify({type:'video_frame',frame:b64}))},VIDEO_MS);
+  }catch(err){
+    console.log('Camera not available — eye monitoring disabled');
+    document.getElementById('eyeStatus').textContent='OFFLINE';
+    document.getElementById('eyeSub').textContent='camera not found';}}
+
+function stopCamera(){camStream?.getTracks().forEach(t=>t.stop());camStream=null;clearInterval(videoTimer);videoTimer=null;
+  document.getElementById('eyeStatus').textContent='STANDBY';
+  document.getElementById('eyeBadge').className='status-badge idle';
+  document.getElementById('eyeBadge').textContent='WARNING ONLY';}
+
+/* COMMAND CENTRE */
+async function refreshDashboard(){
+  try{
+    const res=await fetch(`${API}/api/dashboard/today`);
+    const data=await res.json();
+    const grid=document.getElementById('opCardGrid');
+    if(!data.operators?.length){grid.innerHTML='<div style="font-family:var(--f-m);font-size:.64rem;color:var(--text-dead);padding:20px">No operators registered.</div>';return}
+    grid.innerHTML=data.operators.map(op=>{
+      const z=op.last_zone||'NONE';
+      const col=z==='GREEN'?'var(--plasma)':z==='YELLOW'?'var(--nova)':z==='RED'?'var(--flare)':'var(--text-dead)';
+      return `<div class="op-card" style="--card-col:${col}">
+        <div class="opc-name">${op.name}</div>
+        <div class="opc-id">${op.operator_id}</div>
+        <div class="opc-score" style="color:${col}">${op.last_score!=null?op.last_score.toFixed(1):'──'}</div>
+        <div class="opc-zone" style="color:${col}">${z!=='NONE'?z:'NO DATA'}</div>
+        <div class="opc-meta">Stamps today: ${op.today_stamps} · Red: ${op.today_red} · Yellow: ${op.today_yellow}</div>
+        ${op.last_eye_warning?`<div class="opc-meta" style="color:var(--amber)">Last eye warn: ${op.last_eye_warning.slice(11,19)}</div>`:''}
+        <div class="opc-badge ${op.on_duty?'on-duty':'off-duty'}">${op.on_duty?'ON DUTY':'OFF DUTY'}</div>
+      </div>`}).join('');
+  }catch(e){document.getElementById('opCardGrid').innerHTML='<div style="color:var(--flare);font-family:var(--f-m);font-size:.64rem;padding:20px">Cannot reach server.</div>'}}
+
+async function refreshAlerts(){
+  try{
+    const res=await fetch(`${API}/api/dashboard/alerts?limit=30`);
+    const data=await res.json();
+    const scroll=document.getElementById('alertsScroll');
+    const fatigue=data.fatigue_alerts||[];
+    const eyes=data.eye_warnings||[];
+    const all=[...fatigue.map(a=>({...a,kind:'fatigue'})),...eyes.map(a=>({...a,kind:'eye'}))];
+    all.sort((a,b)=>b.timestamp.localeCompare(a.timestamp));
+    if(!all.length){scroll.innerHTML='<div style="font-family:var(--f-m);font-size:.64rem;color:var(--text-dead);padding:16px">No alerts recorded today.</div>';return}
+    scroll.innerHTML=all.slice(0,30).map(a=>{
+      if(a.kind==='fatigue'){
+        const zc=a.zone==='YELLOW'?'Y':'R';
+        return `<div class="alert-row"><span class="ar-zone ${zc}">${a.zone}</span>
+          <span class="ar-info">${a.operator_name} (${a.operator_id}) · Score: ${a.avg_score?.toFixed(1)}<br>${a.alert_message||''}</span>
+          <span class="ar-time">${a.timestamp.slice(11,19)}</span></div>`}
+      return `<div class="alert-row"><span class="ar-zone E">EYE</span>
+        <span class="ar-info">${a.operator_name} (${a.operator_id})<br>Eyes closed ${a.duration_sec?.toFixed(1)}s</span>
+        <span class="ar-time">${a.timestamp.slice(11,19)}</span></div>`}).join('');
+  }catch(e){}}
+
+async function registerOperator(){
+  const id=document.getElementById('regId').value.trim().toUpperCase();
+  const name=document.getElementById('regName').value.trim();
+  if(!id||!name){alert('Enter both ID and name');return}
+  try{
+    const res=await fetch(`${API}/api/operators`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operator_id:id,name})});
+    if(res.ok){document.getElementById('regId').value='';document.getElementById('regName').value='';loadRegList();loadReportOps()}
+    else{const e=await res.json();alert(e.detail||'Error')}
+  }catch(e){alert('Server error')}}
+
+async function loadRegList(){
+  try{
+    const res=await fetch(`${API}/api/operators`);
+    const data=await res.json();
+    const list=document.getElementById('regList');
+    list.innerHTML=data.operators?.map(op=>`<div class="reg-item">
+      <span class="ri-name">${op.name}</span>
+      <span class="ri-id">${op.operator_id}</span>
+      <button class="ri-del" onclick="deleteOp('${op.operator_id}')">REMOVE</button>
+    </div>`).join('')||'<div style="color:var(--text-dead);font-size:.62rem;font-family:var(--f-m)">No operators registered.</div>'
+  }catch(e){}}
+
+async function deleteOp(id){
+  if(!confirm(`Remove operator ${id}?`))return;
+  try{await fetch(`${API}/api/operators/${id}`,{method:'DELETE'});loadRegList();loadReportOps()}catch(e){}}
+
+async function loadReportOps(){
+  try{
+    const res=await fetch(`${API}/api/operators`);
+    const data=await res.json();
+    const sel=document.getElementById('reportOpSel');
+    sel.innerHTML=data.operators?.map(o=>`<option value="${o.operator_id}">${o.name} (${o.operator_id})</option>`).join('')||'<option>No operators</option>';
+  }catch(e){}}
+
+async function loadReport(){
+  const opId=document.getElementById('reportOpSel').value;
+  const type=document.getElementById('reportType').value;
+  const date=document.getElementById('reportDate').value;
+  const body=document.getElementById('reportBody');
+  if(!opId){body.innerHTML='<div style="color:var(--text-dead)">Select an operator.</div>';return}
+  body.innerHTML='<div style="color:var(--text-low);font-family:var(--f-m);font-size:.62rem">Loading report…</div>';
+  try{
+    let url=type==='daily'?`${API}/api/reports/daily/${opId}${date?'?report_date='+date:''}`:`${API}/api/reports/weekly/${opId}`;
+    const res=await fetch(url);const data=await res.json();
+    if(type==='daily')renderDailyReport(data);else renderWeeklyReport(data);
+  }catch(e){body.innerHTML='<div style="color:var(--flare);font-family:var(--f-m)">Error loading report.</div>'}}
+
+function renderDailyReport(d){
+  const body=document.getElementById('reportBody');
+  if(d.status==='no_data'){body.innerHTML=`<div style="color:var(--text-dead);font-family:var(--f-m);font-size:.64rem;padding:20px 0">${d.message}</div>`;return}
+  const zCol=d.overall_zone==='GREEN'?'g':d.overall_zone==='YELLOW'?'y':'r';
+  body.innerHTML=`
+    <div style="font-family:var(--f-m);font-size:.6rem;color:var(--text-low);margin-bottom:8px">${d.operator_name} · ${d.date}</div>
+    <div class="report-stat">
+      <div class="rs-card"><div class="rs-lbl">Avg Score</div><div class="rs-val ${zCol}">${d.daily_avg_score}</div></div>
+      <div class="rs-card"><div class="rs-lbl">Max Score</div><div class="rs-val r">${d.daily_max_score}</div></div>
+      <div class="rs-card"><div class="rs-lbl">Duty Time</div><div class="rs-val ion">${d.total_duty_min} min</div></div>
+      <div class="rs-card"><div class="rs-lbl">Eye Warns</div><div class="rs-val ${d.eye_warnings>0?'y':'g'}">${d.eye_warnings}</div></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;font-family:var(--f-m);font-size:.6rem">
+      <span style="color:var(--plasma)">● GREEN: ${d.green_stamps}</span>
+      <span style="color:var(--nova)">● YELLOW: ${d.yellow_stamps}</span>
+      <span style="color:var(--flare)">● RED: ${d.red_stamps}</span>
+      <span style="color:var(--text-dead)">Total stamps: ${d.total_stamps}</span>
+    </div>
+    <div class="report-suggestion">💡 ${d.suggestion}</div>`}
+
+function renderWeeklyReport(d){
+  const body=document.getElementById('reportBody');
+  const trendCls={IMPROVING:'IMP',WORSENING:'WOR',STABLE:'STA',INSUFFICIENT_DATA:'INS'}[d.trend]||'INS';
+  body.innerHTML=`
+    <div style="font-family:var(--f-m);font-size:.6rem;color:var(--text-low);margin-bottom:10px">${d.operator_name} · ${d.period_start} to ${d.period_end}</div>
+    <div style="margin-bottom:10px"><span class="trend-badge ${trendCls}">${d.trend.replace('_',' ')}</span></div>
+    <div style="font-family:var(--f-m);font-size:.6rem;color:var(--text-low);margin-bottom:6px">Days with data: ${d.days_with_data} / 7 · Total RED events: ${d.total_red}</div>
+    <div class="weekly-wrap"><canvas id="weeklyChart"></canvas></div>
+    <div class="report-suggestion">💡 ${d.suggestion}</div>`;
+  setTimeout(()=>{
+    const ctx=document.getElementById('weeklyChart')?.getContext('2d');
+    if(!ctx)return;
+    new Chart(ctx,{type:'bar',
+      data:{labels:d.daily.map(x=>x.date.slice(5)),datasets:[{label:'Avg Score',data:d.daily.map(x=>x.avg_score||0),
+        backgroundColor:d.daily.map(x=>!x.has_data?'rgba(26,48,80,.3)':x.avg_score>=65?'rgba(255,31,78,.6)':x.avg_score>=40?'rgba(255,204,0,.6)':'rgba(0,255,157,.6)'),
+        borderRadius:2}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>c.parsed.y>0?` Score: ${c.parsed.y.toFixed(1)}`:' No data'}}},
+        scales:{x:{grid:{color:'rgba(0,100,180,.1)'},ticks:{color:'#3a6080',font:{family:'JetBrains Mono',size:9}}},
+          y:{min:0,max:100,grid:{color:'rgba(0,100,180,.1)'},ticks:{color:'#3a6080',font:{family:'JetBrains Mono',size:9},stepSize:25}}}}})},100)}
+
+/* INIT */
+document.getElementById('reportDate').value=new Date().toISOString().slice(0,10);
+loadRegList();
+console.log('%cAeroCalm AI V6.0 — ATC Fatigue Monitoring','color:#00f0ff;font-size:14px;font-weight:bold');
+console.log('%cVoice-only scoring · Eye closure warnings · 5-min epoch stamping','color:#7ab0cc');
+</script>
+</body>
+</html>

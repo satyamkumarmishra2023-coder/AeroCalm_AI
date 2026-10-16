@@ -215,4 +215,6 @@ These are known issues in V6.0. Read them before demoing or evaluating the proje
 AeroCalm AI is an experimental student project. It does not diagnose fatigue, illness or fitness for duty, and it does not replace medical professionals, rostering rules or regulatory fatigue-risk-management processes. Any real-world trial needs explicit consent from participants and approval from the relevant organisation.
 
 ## License
-MIT
+Copyright (c) 2026 Satyam Kumar Mishra.
+All Rights Reserved.
+This project is closed-source. You may not copy, distribute, modify, or use this code without explicit written permission from the author.
